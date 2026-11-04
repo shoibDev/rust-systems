@@ -1,1 +1,5 @@
+# Rust compilation files
 **/target/
+
+# Personal assignments and notes
+**/*.local.md
