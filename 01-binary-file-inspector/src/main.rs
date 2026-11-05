@@ -1,7 +1,25 @@
-use std::{array, collections::HashMap};
+use std::env;
+use std::fs::File;
+use std::io::Read;
 
 fn main() {
-    hex_conversion([0, 1, 1, 0, 1, 1, 1, 1]);
+    let args: Vec<String> = env::args().collect();
+
+    let path: &str = &args[1];
+    let mut file = match File::open(path) {
+        Ok(f) => f,
+        Err(e) => {
+            eprintln!("error: {e}");
+            return;
+        }
+    };
+
+    let mut buffer: [u8; 8] = [0; 8];
+    let n = file.read(&mut buffer[..]).expect("Failed to read File");
+
+    for i in 0_usize..n {
+        println!("{}", buffer[i]);
+    }
 }
 
 fn byte_conversion(mut x: u8) -> [u8; 8] {
