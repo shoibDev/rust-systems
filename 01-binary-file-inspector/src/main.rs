@@ -17,7 +17,12 @@ fn main() {
     };
 
     let mut buffer: [u8; BYTES_PER_ROW] = [0; BYTES_PER_ROW];
+    let mut offset: usize = 0;
 
+    println!(
+        "{:<8} | {:<24} | {:<72} | {}",
+        "OFFSET", "HEX", "BINARY", "ASCII"
+    ); // Column Headers
     loop {
         let bytes_read = file.read(&mut buffer).expect("Unexpected Error");
 
@@ -25,9 +30,30 @@ fn main() {
             break;
         }
 
-        print!("{:?}\n", buffer);
+        let mut hex_str = String::new();
+        let mut binary_str = String::new();
+        let mut ascii_str = String::new();
 
-        buffer = [0u8; BYTES_PER_ROW]; // Reset the buffer after processing
+        for i in 0..bytes_read {
+            hex_str.push_str(&byte_to_hex(buffer[i]));
+            hex_str.push(' ');
+        }
+
+        for i in 0..bytes_read {
+            let byte_arr = byte_to_bits(buffer[i]);
+
+            for bit in byte_arr {
+                binary_str.push_str(&bit.to_string());
+            }
+
+            binary_str.push(' ');
+        }
+
+        for i in 0..bytes_read {
+            ascii_str.push(byte_to_ascii(buffer[i]));
+        }
+        println!("{offset:08X} | {hex_str:<24} | {binary_str:<72} | {ascii_str}");
+        offset += bytes_read; // Update the offset
     }
 }
 
