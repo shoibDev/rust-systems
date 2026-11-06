@@ -2,6 +2,8 @@ use std::env;
 use std::fs::File;
 use std::io::Read;
 
+const BYTES_PER_ROW: usize = 8;
+
 fn main() {
     let args: Vec<String> = env::args().collect();
 
@@ -14,8 +16,19 @@ fn main() {
         }
     };
 
-    let mut buffer: [u8; 8] = [0; 8];
-    let n = file.read(&mut buffer[..]).expect("Failed to read File");
+    let mut buffer: [u8; BYTES_PER_ROW] = [0; BYTES_PER_ROW];
+
+    loop {
+        let bytes_read = file.read(&mut buffer).expect("Unexpected Error");
+
+        if bytes_read == 0 {
+            break;
+        }
+
+        print!("{:?}\n", buffer);
+
+        buffer = [0u8; BYTES_PER_ROW]; // Reset the buffer after processing
+    }
 }
 
 fn byte_to_bits(mut byte: u8) -> [u8; 8] {
