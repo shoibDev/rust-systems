@@ -1,18 +1,23 @@
+use std::io::ErrorKind;
 use std::io::Read;
+use std::io::Write;
 use std::net::{TcpListener, TcpStream};
 
-const MESSAGE_SIZE: usize = 5;
+const BUFFER_SIZE: usize = 1024;
 
+// Only accounting for the happy path.
 fn handle_client(stream: &mut TcpStream) {
-    println!("Client Connected...");
-
-    let mut rx_bytes = [0u8; MESSAGE_SIZE];
+    let mut rx_bytes = [0_u8; BUFFER_SIZE];
 
     loop {
-        let n = stream.read(&mut rx_bytes).unwrap();
+        let n = stream.read(&mut rx_bytes).expect("...");
 
         let received = std::str::from_utf8(&rx_bytes).expect("Valid utf8");
         eprintln!("n bytes: {}\nMessage: {}", n, received);
+
+        // Echo the recieved bytes...
+        stream.write_all(received.as_bytes()).expect("...");
+        stream.flush().unwrap();
     }
 }
 
@@ -21,7 +26,10 @@ fn main() {
 
     for stream in listener.incoming() {
         match stream {
-            Ok(mut stream) => handle_client(&mut stream),
+            Ok(mut stream) => {
+                println!("Client Connected");
+                handle_client(&mut stream)
+            }
             Err(e) => eprintln!("Failed to connect client, {e}"),
         }
     }

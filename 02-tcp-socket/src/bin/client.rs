@@ -1,16 +1,16 @@
-use std::{io::Write, io::stdin, net::TcpStream};
+use std::{
+    io::{Read, Write, stdin},
+    net::TcpStream,
+};
+
+const BUFFER_SIZE: usize = 1024;
 
 fn main() {
     let mut stream = TcpStream::connect("127.0.0.1:8080").unwrap();
     println!("Connected to server!");
 
-    // its a pointer to an array??
-    let data = b"Hello"; // b tells it to make ti an array of bits.. in ASCII
-    // let _bytes_written = stream.write_all(data);
-    // stream.flush().unwrap();
-    // println!("Disconnected");
-
     let mut message: String = String::new();
+    let mut rx_bytes = [0_u8; BUFFER_SIZE];
 
     loop {
         message.clear();
@@ -25,5 +25,10 @@ fn main() {
         let bytes = input.as_bytes();
         stream.write_all(bytes);
         stream.flush().unwrap();
+
+        let n = stream.read(&mut rx_bytes).expect("...");
+        let echo: String = std::str::from_utf8(&mut rx_bytes).unwrap().to_string();
+
+        println!("Echo: {echo}");
     }
 }
