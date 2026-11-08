@@ -7,10 +7,13 @@ fn handle_client(stream: &mut TcpStream) {
     println!("Client Connected...");
 
     let mut rx_bytes = [0u8; MESSAGE_SIZE];
-    stream.read(&mut rx_bytes).unwrap();
 
-    let received = std::str::from_utf8(&rx_bytes).expect("Valid utf8");
-    eprintln!("{}", received);
+    loop {
+        let n = stream.read(&mut rx_bytes).unwrap();
+
+        let received = std::str::from_utf8(&rx_bytes).expect("Valid utf8");
+        eprintln!("n bytes: {}\nMessage: {}", n, received);
+    }
 }
 
 fn main() {
