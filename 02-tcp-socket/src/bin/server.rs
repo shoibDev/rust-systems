@@ -1,12 +1,8 @@
-use std::io::{Read, Write};
+use std::io::ErrorKind::Other;
+use std::io::{ErrorKind, Read, Write};
 use std::net::{TcpListener, TcpStream};
-use std::os::windows::io::FromRawHandle;
 
 const BUFFER_SIZE: usize = 1024;
-
-// 1: ADD IN MESSAGE FRAMING
-// 2: MANAGE EXCEPTION HANDALING
-// 3: MANAGE EXCEPTION HANDALING
 
 // Only accounting for the happy path.
 fn handle_client(stream: &mut TcpStream) {
@@ -15,8 +11,16 @@ fn handle_client(stream: &mut TcpStream) {
     let mut bytes_read: u32 = 0;
 
     'l: loop {
-        let y = stream.read_exact(&mut frame);
-        println!("{:?}", frame);
+        let y = match stream.read_exact(&mut frame) {
+            Ok(()) => {}
+            Err(e) => match e.kind() {
+                ErrorKind::ConnectionReset => {
+                    println!("Client disconnected unexpectedly");
+                    break;
+                }
+                other => {}
+            },
+        };
 
         let mut payload_size: u32 = 0;
 
@@ -47,8 +51,8 @@ fn handle_client(stream: &mut TcpStream) {
         eprintln!("Received: {}", received);
 
         // Echo the recieved bytes...
+        stream.write_all(&frame).expect("...");
         stream.write_all(received.as_bytes()).expect("...");
-        stream.flush().unwrap();
 
         // Reset buffer
         rx_bytes = [0_u8; BUFFER_SIZE];
