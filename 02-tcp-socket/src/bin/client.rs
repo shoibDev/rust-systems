@@ -1,5 +1,5 @@
 use std::{
-    io::{Read, Write, stdin},
+    io::{Read, Write, stdin, stdout},
     net::TcpStream,
 };
 
@@ -14,15 +14,28 @@ fn main() {
 
     loop {
         message.clear();
+
+        print!("Message (or /quit): ");
+        stdout().flush().expect("Failed to flush stdout");
+
         stdin().read_line(&mut message).expect("It failed...");
 
         let input = message.trim_end_matches(['\r', '\n']);
 
-        if message == "/quit" {
+        if input == "/quit" {
             break;
         }
 
         let bytes = input.as_bytes();
+
+        if bytes.len() > BUFFER_SIZE {
+            eprintln!("Message too long!");
+            continue;
+        }
+
+        let header = (bytes.len() as u32).to_be_bytes(); // Try to understrand what BE mans... and did what we did
+
+        stream.write_all(&header);
         stream.write_all(bytes);
         stream.flush().unwrap();
 
