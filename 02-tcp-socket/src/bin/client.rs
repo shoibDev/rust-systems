@@ -42,7 +42,7 @@ fn main() {
     let mut rx_bytes: [u8; BUFFER_SIZE] = [0_u8; BUFFER_SIZE];
     let mut rx_frame: [u8; 4] = [0_u8; 4];
 
-    loop {
+    'l: loop {
         let mut raw_input: String = String::new();
 
         print!("Message (or /quit): ");
@@ -91,19 +91,40 @@ fn main() {
 
         stream.read_exact(&mut rx_frame).expect("...");
 
-        let echo_payload_size: u32 = u32::from_be_bytes(rx_frame);
+        let rx_payload_size: u32 = u32::from_be_bytes(rx_frame);
 
-        let mut bytes_read: u32 = 0;
-        while echo_payload_size < message_length {
-            let n = stream.read(&mut rx_bytes).expect("...");
-            bytes_read += n as u32;
+        if rx_payload_size as usize > MAX_MESSAGE_SIZE {
+            eprintln!("Received message too large!");
+            break;
         }
 
-        println!("{:?}", rx_bytes);
+        let mut bytes_read: u32 = 0;
 
-        let echo: String = std::str::from_utf8(&mut rx_bytes).unwrap().to_string();
+        while bytes_read < rx_payload_size {
+            bytes_read +=
+                match stream.read(&mut rx_bytes[bytes_read as usize..rx_payload_size as usize]) {
+                    Ok(0) => {
+                        println!("Server disconnected");
+                        break 'l;
+                    }
+                    Ok(n) => n as u32,
+                    Err(e) => {
+                        eprintln!("Error reading message, {}", e);
+                        continue 'l;
+                    }
+                }
+        }
 
-        println!("Echo: {echo}");
+        println!(
+            "Echo: {}",
+            match std::str::from_utf8(&rx_bytes[..rx_payload_size as usize]) {
+                Ok(message) => message,
+                Err(e) => {
+                    eprintln!("Invalid UTF-8: {e}");
+                    "Unable to decode message"
+                }
+            }
+        );
 
         // reset rx_bytes
         rx_bytes = [0_u8; BUFFER_SIZE];
