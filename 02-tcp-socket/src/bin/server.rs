@@ -1,76 +1,118 @@
-use std::io::ErrorKind::Other;
-use std::io::{ErrorKind, Read, Write};
-use std::net::{TcpListener, TcpStream};
+use std::{
+    io::{ErrorKind, Read, Write},
+    net::{TcpListener, TcpStream},
+};
 
 const BUFFER_SIZE: usize = 1024;
+const MAX_MESSAGE_SIZE: usize = 1024;
 
-// Only accounting for the happy path.
 fn handle_client(stream: &mut TcpStream) {
-    let mut rx_bytes = [0_u8; BUFFER_SIZE];
-    let mut frame: [u8; 4] = [0_u8; 4]; // each index repersents one byte of the 4 bytes...payload size is u32...
-    let mut bytes_read: u32 = 0;
+    let mut rx_bytes: [u8; BUFFER_SIZE] = [0_u8; BUFFER_SIZE];
+    let mut rx_frame: [u8; 4] = [0_u8; 4];
 
-    'l: loop {
-        let y = match stream.read_exact(&mut frame) {
+    'client: loop {
+        // Read the 4-byte message length header
+        match stream.read_exact(&mut rx_frame) {
             Ok(()) => {}
             Err(e) => match e.kind() {
+                ErrorKind::UnexpectedEof => {
+                    println!("Client disconnected");
+                    break;
+                }
                 ErrorKind::ConnectionReset => {
                     println!("Client disconnected unexpectedly");
                     break;
                 }
-                other => {}
+                other => {
+                    eprintln!("Failed to read header: {} ({:?})", e, other);
+                    break;
+                }
             },
+        }
+
+        let rx_payload_size: u32 = u32::from_be_bytes(rx_frame);
+
+        if rx_payload_size as usize > MAX_MESSAGE_SIZE {
+            eprintln!("Received message too large!");
+            break;
+        }
+
+        // Read the message payload
+        let mut bytes_read: u32 = 0;
+
+        while bytes_read < rx_payload_size {
+            bytes_read +=
+                match stream.read(&mut rx_bytes[bytes_read as usize..rx_payload_size as usize]) {
+                    Ok(0) => {
+                        println!("Client disconnected");
+                        break 'client;
+                    }
+                    Ok(n) => n as u32,
+                    Err(e) => {
+                        eprintln!("Failed to read message: {}", e);
+                        break 'client;
+                    }
+                };
+        }
+
+        // Convert received bytes to a string
+        let received_message = match std::str::from_utf8(&rx_bytes[..rx_payload_size as usize]) {
+            Ok(message) => message,
+            Err(e) => {
+                eprintln!("Invalid UTF-8: {}", e);
+                break;
+            }
         };
 
-        let mut payload_size: u32 = 0;
+        println!("Received: {}", received_message);
 
-        for i in frame {
-            payload_size += i as u32; // optize and use u32::from_be_bytes...
+        // Echo the header back to the client
+        match stream.write_all(&rx_frame) {
+            Ok(()) => {}
+            Err(e) => {
+                eprintln!("Failed to send header: {}", e);
+                break;
+            }
         }
 
-        if payload_size > rx_bytes.len() as u32 {
-            continue 'l;
+        // Echo the message back to the client
+        match stream.write_all(received_message.as_bytes()) {
+            Ok(()) => {}
+            Err(e) => {
+                eprintln!("Failed to send message: {}", e);
+                break;
+            }
         }
-
-        while bytes_read < payload_size {
-            let n = match stream.read(&mut rx_bytes) {
-                Ok(n) if n == 0 => {
-                    println!("Client Disconnected");
-                    break 'l;
-                }
-                Ok(n) => n,
-                Err(e) => {
-                    eprintln!("An Error has occured: {e}");
-                    break 'l;
-                }
-            };
-            bytes_read += n as u32;
-        }
-        let received =
-            std::str::from_utf8(&rx_bytes[0..(payload_size as usize)]).expect("Valid utf8");
-        eprintln!("Received: {}", received);
-
-        // Echo the recieved bytes...
-        stream.write_all(&frame).expect("...");
-        stream.write_all(received.as_bytes()).expect("...");
 
         // Reset buffer
         rx_bytes = [0_u8; BUFFER_SIZE];
-        bytes_read = 0;
     }
 }
 
 fn main() {
-    let listener = TcpListener::bind("127.0.0.1:8080").unwrap();
+    let listener = match TcpListener::bind("127.0.0.1:8080") {
+        Ok(listener) => listener,
+        Err(e) => {
+            eprintln!("Failed to start server: {}", e);
+            std::process::exit(1);
+        }
+    };
+
     println!("Listening on 127.0.0.1:8080");
 
-    for stream in listener.incoming() {
-        match stream {
+    for connection in listener.incoming() {
+        match connection {
             Ok(mut stream) => {
-                println!("Client Connected {}", stream.peer_addr().expect("..."));
-                handle_client(&mut stream)
+                match stream.peer_addr() {
+                    Ok(addr) => println!("Client connected: {}", addr),
+                    Err(e) => eprintln!("Failed to get client address: {}", e),
+                }
+
+                handle_client(&mut stream);
             }
-            Err(e) => eprintln!("Failed to connect client, {e}"),
+            Err(e) => {
+                eprintln!("Failed to accept client: {}", e);
+            }
         }
     }
 }
